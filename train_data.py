@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import chardet
+import datetime
 def train_test_data():
     df_train = pd.read_csv("train.csv")
     df_test = pd.read_csv("test.csv")
@@ -46,3 +47,27 @@ if __name__ == "__main__":
     df_train_user_taglist_listing_info_user_info = pd.merge(df_train_user_taglist_listing_info,user_info,on ='user_id',how = 'left')
     df_test_user_taglist_listing_info_user_info = pd.merge(df_test_user_taglist_listing_info, user_info, on='user_id', how='left')
     print(df_train_user_taglist_listing_info_user_info.shape)
+    #属性日期转换
+    print(df_train_user_taglist_listing_info_user_info.columns)
+    #x训练集
+    for index in list(df_train_user_taglist_listing_info_user_info.index):
+        year, month, day= str(df_train_user_taglist_listing_info_user_info.loc[index, 'auditing_date']).split( sep="-")
+        year_1, month_1, day_1 = str(df_train_user_taglist_listing_info_user_info.loc[index, 'due_date']).split(sep="-")
+        starttime = datetime.datetime(int(year),int(month),int(day))
+        endtime = datetime.datetime(int(year_1), int(month_1), int(day_1))
+        df_train_user_taglist_listing_info_user_info.loc[index, 'due_date'] = endtime-starttime
+    #测试集
+    for index in list(df_test_user_taglist_listing_info_user_info.index):
+        year, month, day = str(df_test_user_taglist_listing_info_user_info.loc[index, 'auditing_date']).split( sep="-")
+        year_1, month_1, day_1 = str(df_test_user_taglist_listing_info_user_info.loc[index, 'due_date']).split(sep="-")
+        starttime = datetime.datetime(int(year), int(month), int(day))
+        endtime = datetime.datetime(int(year_1), int(month_1), int(day_1))
+        df_test_user_taglist_listing_info_user_info.loc[index, 'due_date'] = endtime-starttime
+    #回归预测其中的一个日期目标
+    for index in list(df_train_user_taglist_listing_info_user_info.index):
+        year, month, day = str(df_train_user_taglist_listing_info_user_info.loc[index, 'auditing_date']).split( sep="-")
+        year_1, month_1, day_1 = str(df_train_user_taglist_listing_info_user_info.loc[index, 'repay_date']).split(sep="-")
+        starttime = datetime.datetime(int(year), int(month), int(day))
+        endtime = datetime.datetime(int(year_1), int(month_1), int(day_1))
+        df_train_user_taglist_listing_info_user_info.loc[index, 'repay_date'] = endtime-starttime
+    print(df_train_user_taglist_listing_info_user_info)
