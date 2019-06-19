@@ -163,125 +163,126 @@ def gender(df):
     模型训练函数
 """
 def train():
-    df_train =  pd.read_csv("train_data.csv")
-    df_test = pd.read_csv("test_data.csv")
-    #保存成交日期，为后面数据回复
-    df_train_auditing_date = df_train['auditing_date'].values
-    df_test_auditing_date = df_test['auditing_date'].values
-    df_train = df_train.drop(["auditing_date"],axis =1)
-    df_test = df_test.drop(["auditing_date"],axis =1)
+    try:
+        df_train =  pd.read_csv("train_data.csv")
+        df_test = pd.read_csv("test_data.csv")
+        #保存成交日期，为后面数据回复
+        df_train_auditing_date = df_train['auditing_date'].values
+        df_test_auditing_date = df_test['auditing_date'].values
+        df_train = df_train.drop(["auditing_date"],axis =1)
+        df_test = df_test.drop(["auditing_date"],axis =1)
 
-    # print("第一步。。。。。。。。。。。。。。")
-    # #删除'repay_date'和repay_amt为空的值
-    # df_train = df_train.loc[df_train['repay_date'].notnull(),:]
-    # df_train = df_train.loc[df_train['repay_amt'].notnull(), :]
-    #
-    # repay_date_dict = {}
-    # repay_amt_dict = {}
-    # ##根据用户id进行分组，所以每组有一个名字name=user_id
-    # for (name,groupuser) in df_train[['user_id','repay_amt','repay_date']].groupby(df_train['user_id'].values):
-    #     repay_amt_mean = groupuser['repay_amt'].mean()
-    #     repay_date_mean = groupuser['repay_date'].mean()
-    #     #存入字典
-    #     repay_date_dict[name] = repay_date_mean
-    #     repay_amt_dict[name] = repay_amt_mean
-    # #repay_amt和repay_date转为差距值
-    # for index in list(df_train.index):
-    #     df_train.loc[index,'repay_amt'] = float(df_train.loc[index,'repay_amt']) - repay_amt_dict[df_train.loc[index,'user_id']]
-    #     df_train.loc[index, 'repay_date'] = float(df_train.loc[index, 'repay_date']) - repay_date_dict[df_train.loc[index, 'user_id']]
-
-
-    print("第二步。。。。。。。。。。。。。。")
-    #处理用户画像列；'taglist'
-
-    #得到训练集和测试集的用户的tag和各自的总和tag
-    taglist_train, user_taglist_train = get_taglist(df_train)
-    taglist_test, user_taglist_test = get_taglist(df_test)
-    #得到总和的tag，即tag总和
-    taglist = list(set(taglist_train + taglist_test))
-    #为taglist做准备
-    length_train = len(df_train)
-    length_test = len(df_test)
-    user_id_train = df_train[['user_id']]
-    user_id_test = df_test[['user_id']]
-    #对taglist进行onehot，这个列不同于其他列，其他列可以用One_Hot函数
-    train_df = taglist_onehot(taglist,user_taglist_train,user_id_train,length_train)
-    test_df = taglist_onehot(taglist,user_taglist_test,user_id_test,length_test)
-    #删除多余的user_id列
-    train_df = train_df.drop(['user_id'],axis=1)
-    test_df = test_df.drop(['user_id'],axis=1)
-    #删除原来的taglist
-    df_train = df_train.drop(['taglist'],axis=1)
-    df_test = df_test.drop(['taglist'],axis=1)
-    #合并
-    df_train  = pd.concat([df_train,train_df],axis=0)
-    df_test = pd.concat([df_test,test_df],axis=0)
-
-    #发现其他列没必要进行onhot饿，进行数据归一化，使得每列数据的对目标的影响是均匀的，平等看待每一列数据
-    #处理性别,也可以进行onehot,个人觉得二值数据影响不大
-    df_train = gender(df_train)
-    df_test = gender(df_test)
-    #可进行split_bins,
-
-    print("第三步。。。。。。。。。。。。。。")
-    # 目标1和2
-    label_repay_date = df_train['repay_date'].values
-    label_repay_amt = df_train['repay_amt'].values
-    df_train = df_train.drop(['repay_date','repay_amt'],axis=1)
-
-    #保存训练集和测试集的行列索引
-    train_columns = list(df_train.columns)
-    test_columns = list(df_test.columns)
-    train_index = list(df_train.index)
-    test_index = list(df_test.index)
-
-    #保存测试集的listing_id，后面要写入文件
-    listing_id = df_test['listing_id'].values
-
-    #数据归一化
-    en= StandardScaler()
-    en.fit(df_train.values)
-    df_train = en.transform(df_train.values)
-    df_test = en.transform(df_test.values)
-
-    print("第四步。。。。。。。。。。。。。。")
-    #开始训练，选择模型KNN
-    #预测金额
-    predict_amt = Model_cross_validation(df_train,label_repay_amt,df_test)
-
-    #预测日期，把预测金额也作为属性特征
-    df_train = pd.DataFrame(df_train,index = train_index,columns=train_columns)
-    df_train['repay_amt'] = label_repay_amt
-    df_test = pd.DataFrame(df_test,index=test_index,columns=test_columns)
-    df_test['repay_amt'] = predict_amt
-    #进行数据归一化
-    en = StandardScaler()
-    en.fit(df_train.values)
-    df_train = en.transform(df_train.values)
-    df_test = en.transform(df_test.values)
-
-    #预测日期
-    predict_date = Model_cross_validation(df_train, label_repay_date, df_test)
-
-    print("第五步。。。。。。。。。。。。。。")
-    #构建写入的表
-    df_write = pd.DataFrame([],index = test_index,columns=['listing_id','repay_date','repay_amt'])
-    df_write['listing_id'] = listing_id
-    df_write['repay_date']= predict_date
-    df_write['repay_amt'] = predict_amt
-    df_write['auditing_date'] = df_test_auditing_date
-    df_write['auditing_date'] = pd.to_datetime(df_write.auditing_date)
-    #复原日期
-    for i in range(len(predict_date)):
-        delta = datetime.timedelta(days =predict_date[i])
-        df_write.loc[i,'repay_date'] = (df_write.loc[i,'auditing_date'] + delta).date().__str__()
-    df_write = df_write.drop(['auditing_date'],axis=1)
-    df_write.to_csv('result.csv')
-    #金额复原
+        # print("第一步。。。。。。。。。。。。。。")
+        # #删除'repay_date'和repay_amt为空的值
+        # df_train = df_train.loc[df_train['repay_date'].notnull(),:]
+        # df_train = df_train.loc[df_train['repay_amt'].notnull(), :]
+        #
+        # repay_date_dict = {}
+        # repay_amt_dict = {}
+        # ##根据用户id进行分组，所以每组有一个名字name=user_id
+        # for (name,groupuser) in df_train[['user_id','repay_amt','repay_date']].groupby(df_train['user_id'].values):
+        #     repay_amt_mean = groupuser['repay_amt'].mean()
+        #     repay_date_mean = groupuser['repay_date'].mean()
+        #     #存入字典
+        #     repay_date_dict[name] = repay_date_mean
+        #     repay_amt_dict[name] = repay_amt_mean
+        # #repay_amt和repay_date转为差距值
+        # for index in list(df_train.index):
+        #     df_train.loc[index,'repay_amt'] = float(df_train.loc[index,'repay_amt']) - repay_amt_dict[df_train.loc[index,'user_id']]
+        #     df_train.loc[index, 'repay_date'] = float(df_train.loc[index, 'repay_date']) - repay_date_dict[df_train.loc[index, 'user_id']]
 
 
+        print("第二步。。。。。。。。。。。。。。")
+        #处理用户画像列；'taglist'
+
+        #得到训练集和测试集的用户的tag和各自的总和tag
+        taglist_train, user_taglist_train = get_taglist(df_train)
+        taglist_test, user_taglist_test = get_taglist(df_test)
+        #得到总和的tag，即tag总和
+        taglist = list(set(taglist_train + taglist_test))
+        #为taglist做准备
+        length_train = len(df_train)
+        length_test = len(df_test)
+        user_id_train = df_train[['user_id']]
+        user_id_test = df_test[['user_id']]
+        #对taglist进行onehot，这个列不同于其他列，其他列可以用One_Hot函数
+        train_df = taglist_onehot(taglist,user_taglist_train,user_id_train,length_train)
+        test_df = taglist_onehot(taglist,user_taglist_test,user_id_test,length_test)
+        #删除多余的user_id列
+        train_df = train_df.drop(['user_id'],axis=1)
+        test_df = test_df.drop(['user_id'],axis=1)
+        #删除原来的taglist
+        df_train = df_train.drop(['taglist'],axis=1)
+        df_test = df_test.drop(['taglist'],axis=1)
+        #合并
+        df_train  = pd.concat([df_train,train_df],axis=0)
+        df_test = pd.concat([df_test,test_df],axis=0)
+
+        #发现其他列没必要进行onhot饿，进行数据归一化，使得每列数据的对目标的影响是均匀的，平等看待每一列数据
+        #处理性别,也可以进行onehot,个人觉得二值数据影响不大
+        df_train = gender(df_train)
+        df_test = gender(df_test)
+        #可进行split_bins,
+
+        print("第三步。。。。。。。。。。。。。。")
+        # 目标1和2
+        label_repay_date = df_train['repay_date'].values
+        label_repay_amt = df_train['repay_amt'].values
+        df_train = df_train.drop(['repay_date','repay_amt'],axis=1)
+
+        #保存训练集和测试集的行列索引
+        train_columns = list(df_train.columns)
+        test_columns = list(df_test.columns)
+        train_index = list(df_train.index)
+        test_index = list(df_test.index)
+
+        #保存测试集的listing_id，后面要写入文件
+        listing_id = df_test['listing_id'].values
+
+        #数据归一化
+        en= StandardScaler()
+        en.fit(df_train.values)
+        df_train = en.transform(df_train.values)
+        df_test = en.transform(df_test.values)
+
+        print("第四步。。。。。。。。。。。。。。")
+        #开始训练，选择模型KNN
+        #预测金额
+        predict_amt = Model_cross_validation(df_train,label_repay_amt,df_test)
+
+        #预测日期，把预测金额也作为属性特征
+        df_train = pd.DataFrame(df_train,index = train_index,columns=train_columns)
+        df_train['repay_amt'] = label_repay_amt
+        df_test = pd.DataFrame(df_test,index=test_index,columns=test_columns)
+        df_test['repay_amt'] = predict_amt
+        #进行数据归一化
+        en = StandardScaler()
+        en.fit(df_train.values)
+        df_train = en.transform(df_train.values)
+        df_test = en.transform(df_test.values)
+
+        #预测日期
+        predict_date = Model_cross_validation(df_train, label_repay_date, df_test)
+
+        print("第五步。。。。。。。。。。。。。。")
+        #构建写入的表
+        df_write = pd.DataFrame([],index = test_index,columns=['listing_id','repay_date','repay_amt'])
+        df_write['listing_id'] = listing_id
+        df_write['repay_date']= predict_date
+        df_write['repay_amt'] = predict_amt
+        df_write['auditing_date'] = df_test_auditing_date
+        df_write['auditing_date'] = pd.to_datetime(df_write.auditing_date)
+        #复原日期
+        for i in range(len(predict_date)):
+            delta = datetime.timedelta(days =predict_date[i])
+            df_write.loc[i,'repay_date'] = (df_write.loc[i,'auditing_date'] + delta).date().__str__()
+        df_write = df_write.drop(['auditing_date'],axis=1)
+        df_write.to_csv('result.csv')
+        #金额复原
+    except Exception as e:
+        print(e)
 def Model_cross_validation(X,y,test):
-    slr= KNeighborsRegressor(weights='distance',n_neighbors=20,p=2,metric='minkowski')
+    slr= KNeighborsRegressor(weights='distance',n_neighbors=10,p=2,metric='minkowski')
     slr.fit(X,y)
     predict=slr.predict(test)
     return predict
