@@ -126,7 +126,7 @@ def get_taglist(df_train):
                 for item in subtag_list:
                     tag_list.append(item)
                     taglist.append(item)
-        user_taglist[name] = tag_list
+        user_taglist[name] = list(np.unique(tag_list))
         taglist = list(np.unique(taglist))
         tag_list.clear()
     return taglist,user_taglist
