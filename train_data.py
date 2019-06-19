@@ -144,7 +144,7 @@ def taglist_onehot(taglist,user_taglist,user_id,length):
     list_columns = [x for x in range(len(taglist))]
     df = pd.DataFrame([],index = list_index,columns =list_columns )
     df.loc[:,'user_id']= user_id.loc[:,'user_id']
-    for index in df.index:
+    for index in list(df.index):
         #取出每个用户对应得标签集合
         tag_list = user_taglist[df.loc[index,'user_id']]
         for item in tag_list:
@@ -168,27 +168,30 @@ def train():
     #保存成交日期，为后面数据回复
     df_train_auditing_date = df_train['auditing_date'].values
     df_test_auditing_date = df_test['auditing_date'].values
-    df_train = df_train.drop(["auditing_date",'age'],axis =1)
-    df_test = df_test.drop(["auditing_date",'age'],axis =1)
+    df_train = df_train.drop(["auditing_date"],axis =1)
+    df_test = df_test.drop(["auditing_date"],axis =1)
 
-    #删除'repay_date'和repay_amt为空的值
-    df_train = df_train.loc[df_train['repay_date'].notnull(),:]
-    df_train = df_train.loc[df_train['repay_amt'].notnull(), :]
+    # print("第一步。。。。。。。。。。。。。。")
+    # #删除'repay_date'和repay_amt为空的值
+    # df_train = df_train.loc[df_train['repay_date'].notnull(),:]
+    # df_train = df_train.loc[df_train['repay_amt'].notnull(), :]
+    #
+    # repay_date_dict = {}
+    # repay_amt_dict = {}
+    # ##根据用户id进行分组，所以每组有一个名字name=user_id
+    # for (name,groupuser) in df_train[['user_id','repay_amt','repay_date']].groupby(df_train['user_id'].values):
+    #     repay_amt_mean = groupuser['repay_amt'].mean()
+    #     repay_date_mean = groupuser['repay_date'].mean()
+    #     #存入字典
+    #     repay_date_dict[name] = repay_date_mean
+    #     repay_amt_dict[name] = repay_amt_mean
+    # #repay_amt和repay_date转为差距值
+    # for index in list(df_train.index):
+    #     df_train.loc[index,'repay_amt'] = float(df_train.loc[index,'repay_amt']) - repay_amt_dict[df_train.loc[index,'user_id']]
+    #     df_train.loc[index, 'repay_date'] = float(df_train.loc[index, 'repay_date']) - repay_date_dict[df_train.loc[index, 'user_id']]
 
-    repay_date_dict = {}
-    repay_amt_dict = {}
-    ##根据用户id进行分组，所以每组有一个名字name=user_id
-    for (name,groupuser) in df_train[['user_id','repay_amt','repay_date']].groupby(df_train['user_id'].values):
-        repay_amt_mean = groupuser['repay_amt'].mean()
-        repay_date_mean = groupuser['repay_date'].mean()
-        #存入字典
-        repay_date_dict[name] = repay_date_mean
-        repay_amt_dict[name] = repay_amt_mean
-    #repay_amt和repay_date转为差距值
-    for index in df_train:
-        df_train.loc[index,'repay_amt'] = df_train.loc[index,'repay_amt'] - repay_amt_dict[df_train.loc[index,'user_id']]
-        df_train.loc[index, 'repay_date'] = df_train.loc[index, 'repay_date'] - repay_date_dict[df_train.loc[index, 'user_id']]
 
+    print("第二步。。。。。。。。。。。。。。")
     #处理用户画像列；'taglist'
 
     #得到训练集和测试集的用户的tag和各自的总和tag
@@ -220,8 +223,7 @@ def train():
     df_test = gender(df_test)
     #可进行split_bins,
 
-
-
+    print("第三步。。。。。。。。。。。。。。")
     # 目标1和2
     label_repay_date = df_train['repay_date'].values
     label_repay_amt = df_train['repay_amt'].values
@@ -242,7 +244,7 @@ def train():
     df_train = en.transform(df_train.values)
     df_test = en.transform(df_test.values)
 
-
+    print("第四步。。。。。。。。。。。。。。")
     #开始训练，选择模型KNN
     #预测金额
     predict_amt = Model_cross_validation(df_train,label_repay_amt,df_test)
@@ -261,55 +263,65 @@ def train():
     #预测日期
     predict_date = Model_cross_validation(df_train, label_repay_date, df_test)
 
+    print("第五步。。。。。。。。。。。。。。")
     #构建写入的表
     df_write = pd.DataFrame([],index = test_index,columns=['listing_id','repay_date','repay_amt'])
     df_write['listing_id'] = listing_id
     df_write['repay_date']= predict_date
     df_write['repay_amt'] = predict_amt
-    #日期复原
-
+    df_write['auditing_date'] = df_test_auditing_date
+    df_write['auditing_date'] = pd.to_datetime(df_write.auditing_date)
+    #复原日期
+    for i in range(len(predict_date)):
+        delta = datetime.timedelta(days =predict_date[i])
+        df_write.loc[i,'repay_date'] = (df_write.loc[i,'auditing_date'] + delta).date().__str__()
+    df_write = df_write.drop(['auditing_date'],axis=1)
+    df_write.to_csv('result.csv')
     #金额复原
+
+
 def Model_cross_validation(X,y,test):
-    slr= KNeighborsRegressor(weights='distance')
+    slr= KNeighborsRegressor(weights='distance',n_neighbors=20,p=2,metric='minkowski')
     slr.fit(X,y)
     predict=slr.predict(test)
     return predict
 
 if __name__ == "__main__":
-    df_train,df_test = train_test_data()
-    #与用户画像标签链接
-    user_taglist = user_taglist()
-    user_taglist = user_taglist.drop(['insertdate'],axis=1)
-    df_train_user_taglist = pd.merge(df_train,user_taglist,on='user_id',how='left')
-    df_test_user_taglist = pd.merge(df_test, user_taglist, on='user_id', how='left')
-    print(df_train_user_taglist.shape)
-    #与标的属性表链接
-    listing_info = listing_info()
-    listing_info = listing_info.drop(["auditing_date"],axis =1)
-    df_train_user_taglist_listing_info = pd.merge(df_train_user_taglist,listing_info,on = ['user_id','listing_id'],how = 'left')
-    df_test_user_taglist_listing_info = pd.merge(df_test_user_taglist, listing_info, on=['user_id', 'listing_id'],how='left')
-    #与借款用户基础信息表链接
-    user_info = user_info()
-    user_info = user_info.drop(['reg_mon','cell_province',"insertdate",'id_province','id_city'],axis=1)
-    df_train_user_taglist_listing_info_user_info = pd.merge(df_train_user_taglist_listing_info,user_info,on ='user_id',how = 'left')
-    df_test_user_taglist_listing_info_user_info = pd.merge(df_test_user_taglist_listing_info, user_info, on='user_id', how='left')
-    print(df_train_user_taglist_listing_info_user_info.shape)
-    #属性日期转换
-    print(df_train_user_taglist_listing_info_user_info.columns)
-    print('这是主线程：', threading.current_thread().name)
-    #创建子线程
-    thread_test = threading.Thread(target= run,kwargs={'df_test_user_taglist_listing_info_user_info':df_test_user_taglist_listing_info_user_info})
-    thread_test.start()
-    #x训练集
-    df_train_user_taglist_listing_info_user_info['auditing_date'] = pd.to_datetime(df_train_user_taglist_listing_info_user_info.auditing_date)
-    df_train_user_taglist_listing_info_user_info['repay_date'] = pd.to_datetime(df_train_user_taglist_listing_info_user_info.repay_date)
-    df_train_user_taglist_listing_info_user_info['due_date'] = pd.to_datetime(df_train_user_taglist_listing_info_user_info.due_date)
-    df_train_user_taglist_listing_info_user_info['repay_date'] = df_train_user_taglist_listing_info_user_info['repay_date'] - df_train_user_taglist_listing_info_user_info['auditing_date']
-    df_train_user_taglist_listing_info_user_info['due_date'] = df_train_user_taglist_listing_info_user_info['due_date'] - df_train_user_taglist_listing_info_user_info['auditing_date']
-    f = lambda x:str(x)[0:2]
-    df_train_user_taglist_listing_info_user_info['repay_date'] = df_train_user_taglist_listing_info_user_info['repay_date'].map(f)
-    df_train_user_taglist_listing_info_user_info['due_date'] = df_train_user_taglist_listing_info_user_info['due_date'].map(f)
-    #保存下训练和测试数据。下次运行就可以不执行前面的步骤
-    df_train_user_taglist_listing_info_user_info.to_csv("train_data.csv")
-    #主线程等待子线程结束
-    thread_test.join()
+    # df_train,df_test = train_test_data()
+    # #与用户画像标签链接
+    # user_taglist = user_taglist()
+    # user_taglist = user_taglist.drop(['insertdate'],axis=1)
+    # df_train_user_taglist = pd.merge(df_train,user_taglist,on='user_id',how='left')
+    # df_test_user_taglist = pd.merge(df_test, user_taglist, on='user_id', how='left')
+    # print(df_train_user_taglist.shape)
+    # #与标的属性表链接
+    # listing_info = listing_info()
+    # listing_info = listing_info.drop(["auditing_date"],axis =1)
+    # df_train_user_taglist_listing_info = pd.merge(df_train_user_taglist,listing_info,on = ['user_id','listing_id'],how = 'left')
+    # df_test_user_taglist_listing_info = pd.merge(df_test_user_taglist, listing_info, on=['user_id', 'listing_id'],how='left')
+    # #与借款用户基础信息表链接
+    # user_info = user_info()
+    # user_info = user_info.drop(['reg_mon','cell_province',"insertdate",'id_province','id_city'],axis=1)
+    # df_train_user_taglist_listing_info_user_info = pd.merge(df_train_user_taglist_listing_info,user_info,on ='user_id',how = 'left')
+    # df_test_user_taglist_listing_info_user_info = pd.merge(df_test_user_taglist_listing_info, user_info, on='user_id', how='left')
+    # print(df_train_user_taglist_listing_info_user_info.shape)
+    # #属性日期转换
+    # print(df_train_user_taglist_listing_info_user_info.columns)
+    # print('这是主线程：', threading.current_thread().name)
+    # #创建子线程
+    # thread_test = threading.Thread(target= run,kwargs={'df_test_user_taglist_listing_info_user_info':df_test_user_taglist_listing_info_user_info})
+    # thread_test.start()
+    # #x训练集
+    # df_train_user_taglist_listing_info_user_info['auditing_date'] = pd.to_datetime(df_train_user_taglist_listing_info_user_info.auditing_date)
+    # df_train_user_taglist_listing_info_user_info['repay_date'] = pd.to_datetime(df_train_user_taglist_listing_info_user_info.repay_date)
+    # df_train_user_taglist_listing_info_user_info['due_date'] = pd.to_datetime(df_train_user_taglist_listing_info_user_info.due_date)
+    # df_train_user_taglist_listing_info_user_info['repay_date'] = df_train_user_taglist_listing_info_user_info['repay_date'] - df_train_user_taglist_listing_info_user_info['auditing_date']
+    # df_train_user_taglist_listing_info_user_info['due_date'] = df_train_user_taglist_listing_info_user_info['due_date'] - df_train_user_taglist_listing_info_user_info['auditing_date']
+    # f = lambda x:str(x)[0:2]
+    # df_train_user_taglist_listing_info_user_info['repay_date'] = df_train_user_taglist_listing_info_user_info['repay_date'].map(f)
+    # df_train_user_taglist_listing_info_user_info['due_date'] = df_train_user_taglist_listing_info_user_info['due_date'].map(f)
+    # #保存下训练和测试数据。下次运行就可以不执行前面的步骤
+    # df_train_user_taglist_listing_info_user_info.to_csv("train_data.csv")
+    # #主线程等待子线程结束
+    # thread_test.join()
+    train()
