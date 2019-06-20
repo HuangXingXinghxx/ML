@@ -133,10 +133,10 @@ def get_taglist(df_train):
         user_taglist[name] = list(np.unique(tag_list))
         tag_list.clear()
     #筛选标签次数，小于10的不要
-    for key in taglist.keys():
-        if taglist.get(key,False)<10:
-            del taglist[key]
-    return list(taglist.keys()),user_taglist
+    df_taglist = pd.DataFrame(taglist.values(),index = list(taglist.keys()),columns=['times'])
+    del taglist
+    df_taglist = df_taglist.loc[df_taglist['times']>=10,:]
+    return list(df_taglist.index),user_taglist
 """  
      把taglist中得每个用户得多个标签进行onehot
      把返回的df与原来的df_train拼接
