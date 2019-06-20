@@ -135,7 +135,7 @@ def get_taglist(df_train):
     #筛选标签次数，小于10的不要
     df_taglist = pd.DataFrame(list(taglist.values()),index = list(taglist.keys()),columns=['times'])
     del taglist
-    df_taglist = df_taglist.loc[df_taglist['times']>=100,:]
+    df_taglist = df_taglist.loc[df_taglist['times']>=1000,:]
     return list(df_taglist.index),user_taglist
 """  
      把taglist中得每个用户得多个标签进行onehot
@@ -154,8 +154,9 @@ def taglist_onehot(taglist,user_taglist,user_id,length):
         #取出每个用户对应得标签集合
         tag_list = user_taglist[df.loc[index,'user_id']]
         for item in tag_list:
-            position = taglist.index(item)
-            df.loc[index,position] =1  #出现的tag填充为1
+            if item in taglist:
+                position = taglist.index(item)
+                df.loc[index,position] =1  #出现的tag填充为1
     df = df.fillna(0)#没出现位置填充为0
     return df
 """
@@ -194,7 +195,6 @@ def train():
         df_train =  pd.read_csv("train_data.csv")
         df_test = pd.read_csv("test_data.csv")
         #保存成交日期，为后面数据回复
-        df_train_auditing_date = df_train['auditing_date'].values
         df_test_auditing_date = df_test['auditing_date'].values
         df_train = df_train.drop(["auditing_date"],axis =1)
         df_test = df_test.drop(["auditing_date"],axis =1)
@@ -207,6 +207,8 @@ def train():
         taglist_test, user_taglist_test = get_taglist(df_test)
         #得到总和的tag，即tag总和
         taglist = list(set(taglist_train + taglist_test))
+        del taglist_train
+        del taglist_test
         #为taglist做准备
         length_train = len(df_train)
         length_test = len(df_test)
@@ -215,6 +217,9 @@ def train():
         #对taglist进行onehot，这个列不同于其他列，其他列可以用One_Hot函数
         train_df = taglist_onehot(taglist,user_taglist_train,user_id_train,length_train)
         test_df = taglist_onehot(taglist,user_taglist_test,user_id_test,length_test)
+        del taglist
+        del user_taglist_train
+        del user_taglist_test
         #删除多余的user_id列
         train_df = train_df.drop(['user_id'],axis=1)
         test_df = test_df.drop(['user_id'],axis=1)
