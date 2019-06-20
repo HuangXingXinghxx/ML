@@ -133,9 +133,9 @@ def get_taglist(df_train):
         user_taglist[name] = list(np.unique(tag_list))
         tag_list.clear()
     #筛选标签次数，小于10的不要
-    df_taglist = pd.DataFrame(taglist.values(),index = list(taglist.keys()),columns=['times'])
+    df_taglist = pd.DataFrame(list(taglist.values()),index = list(taglist.keys()),columns=['times'])
     del taglist
-    df_taglist = df_taglist.loc[df_taglist['times']>=10,:]
+    df_taglist = df_taglist.loc[df_taglist['times']>=100,:]
     return list(df_taglist.index),user_taglist
 """  
      把taglist中得每个用户得多个标签进行onehot
@@ -165,6 +165,27 @@ def gender(df):
     gender_dict={'男':0,'女':1}
     df["gender"] = df['gender'].map(gender_dict)
     return df
+
+"""转换目标为差距值，问题在于如果用户没有平均值，该如何得到其平均值，然后再得出最后的值"""
+def diff_object(df_train):
+    print("第一步。。。。。。。。。。。。。。")
+    #删除'repay_date'和repay_amt为空的值
+    df_train = df_train.loc[df_train['repay_date'].notnull(),:]
+    df_train = df_train.loc[df_train['repay_amt'].notnull(), :]
+
+    repay_date_dict = {}
+    repay_amt_dict = {}
+    ##根据用户id进行分组，所以每组有一个名字name=user_id
+    for (name,groupuser) in df_train[['user_id','repay_amt','repay_date']].groupby(df_train['user_id'].values):
+        repay_amt_mean = groupuser['repay_amt'].mean()
+        repay_date_mean = groupuser['repay_date'].mean()
+        #存入字典
+        repay_date_dict[name] = repay_date_mean
+        repay_amt_dict[name] = repay_amt_mean
+    #repay_amt和repay_date转为差距值
+    for index in list(df_train.index):
+        df_train.loc[index,'repay_amt'] = float(df_train.loc[index,'repay_amt']) - repay_amt_dict[df_train.loc[index,'user_id']]
+        df_train.loc[index, 'repay_date'] = float(df_train.loc[index, 'repay_date']) - repay_date_dict[df_train.loc[index, 'user_id']]
 """
     模型训练函数
 """
@@ -177,26 +198,6 @@ def train():
         df_test_auditing_date = df_test['auditing_date'].values
         df_train = df_train.drop(["auditing_date"],axis =1)
         df_test = df_test.drop(["auditing_date"],axis =1)
-
-        # print("第一步。。。。。。。。。。。。。。")
-        # #删除'repay_date'和repay_amt为空的值
-        # df_train = df_train.loc[df_train['repay_date'].notnull(),:]
-        # df_train = df_train.loc[df_train['repay_amt'].notnull(), :]
-        #
-        # repay_date_dict = {}
-        # repay_amt_dict = {}
-        # ##根据用户id进行分组，所以每组有一个名字name=user_id
-        # for (name,groupuser) in df_train[['user_id','repay_amt','repay_date']].groupby(df_train['user_id'].values):
-        #     repay_amt_mean = groupuser['repay_amt'].mean()
-        #     repay_date_mean = groupuser['repay_date'].mean()
-        #     #存入字典
-        #     repay_date_dict[name] = repay_date_mean
-        #     repay_amt_dict[name] = repay_amt_mean
-        # #repay_amt和repay_date转为差距值
-        # for index in list(df_train.index):
-        #     df_train.loc[index,'repay_amt'] = float(df_train.loc[index,'repay_amt']) - repay_amt_dict[df_train.loc[index,'user_id']]
-        #     df_train.loc[index, 'repay_date'] = float(df_train.loc[index, 'repay_date']) - repay_date_dict[df_train.loc[index, 'user_id']]
-
 
         print("第二步。。。。。。。。。。。。。。")
         #处理用户画像列；'taglist'
