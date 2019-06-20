@@ -7,6 +7,7 @@ from sklearn.preprocessing  import OneHotEncoder
 from scipy import sparse
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.preprocessing import StandardScaler
+from collections import Counter
 def train_test_data():
     df_train = pd.read_csv("train.csv")
     df_test = pd.read_csv("test.csv")
@@ -114,7 +115,6 @@ taglist：列表类型
 user_taglist：字典类型
 """
 def get_taglist(df_train):
-    taglist = []
     user_taglist = {}
     for (name, groupuser) in df_train[['user_id', 'taglist']].groupby(df_train['user_id'].values):
         tag_list = []
@@ -125,12 +125,16 @@ def get_taglist(df_train):
             else:
                 for item in subtag_list:
                     tag_list.append(item)
-                    taglist.append(item)
         user_taglist[name] = list(np.unique(tag_list))
-        taglist = list(np.unique(taglist))
         tag_list.clear()
+    counter = Counter(user_taglist)
+    taglist = list(Counter(user_taglist).keys())
+    for item in taglist:
+       if counter.get(item)<10:
+           taglist.remove(item)
+    print(len(taglist))
+    print("标签获取完成")
     return taglist,user_taglist
-
 """  
      把taglist中得每个用户得多个标签进行onehot
      把返回的df与原来的df_train拼接
@@ -280,7 +284,7 @@ def train():
         df_write.to_csv('result.csv')
         #金额复原
     except Exception as e:
-        print(e)
+        print(e.__context__)
 def Model_cross_validation(X,y,test):
     slr= KNeighborsRegressor(weights='distance',n_neighbors=10,p=2,metric='minkowski')
     slr.fit(X,y)
